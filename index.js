@@ -6,11 +6,11 @@ const fs = require('fs');
 const https = require('https');
 
 const app = express();
-const port = 3000;
+const port = 8000;
 
 // --- CONFIGURATION ---
 // REPLACE THIS WITH YOUR REAL API KEY FROM /api IN-GAME
-const API_KEY = 'YOUR_KEY_HERE'; 
+const API_KEY = '19c1ecd1c0764028b8f61861cbd53f9b'; 
 
 const authDir = path.join(__dirname, 'auth');
 if (!fs.existsSync(authDir)) fs.mkdirSync(authDir);
@@ -162,5 +162,6 @@ setInterval(async () => {
         }
     }
 }, 60000);
+
 
 app.listen(port, () => console.log(`Dashboard: http://localhost:${port}`));
