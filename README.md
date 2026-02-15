@@ -11,3 +11,17 @@ If you are trying to AFK shards on the donutsmp, create a microsoft account, the
 They client does not yet have a /afk feature, and since you cant /afk random to teleport to a random world, it currently just waits until donutsmp automatically places it in the afk areas.
 
 You could try to do "/afk 7" for example for area 7, but currently alot of people are afking so the command will almost always give you a "Area is filled" error.
+
+
+Features:
+
+Automatically joins Donutsmp.net
+There is a chat feature, but i need to fix it from constantly closing on itself.
+Total amount of shards from all accounts combined (need to add a button that refreshes it, currently it only refreshes every time the node index.js is run)
+
+
+Features that im working on:
+Proxy support
+Get total shard amount button
+random /afk
+Gui Interactions (hard because of geysermc)
