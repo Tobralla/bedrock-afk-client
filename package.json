@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
-    "bedrock-protocol": "latest",
+    "bedrock-protocol": "^3.53.0",
     "express": "^4.22.1",
     "prismarine-auth": "latest",
     "socket.io": "^4.8.3"
