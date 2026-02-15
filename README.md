@@ -3,6 +3,7 @@ VERY BAREBONES (CAN CONNECT AND CHAT)
 Uses Bedrock-protocol, and microsoft oauth to connect to any server you like (in the index.js it is set to donutsmp, feel free to change it tho :D)
 
 you can host it for free using koyeb (i think its like 7 days free trial).
+If you are hosting with koyeb, set the build commands to be "npm install bedrock-protocol" and the start command or whatever its called to "node index.js"
 
 also tries to use donut api to get the total amount of shards from all accounts combined.
 
