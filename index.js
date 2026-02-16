@@ -1,105 +1,140 @@
-const bedrock = require('bedrock-protocol');
-const { Authflow } = require('prismarine-auth');
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const https = require('https');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DonutSMP Bot Manager</title>
+    <style>
+        body { background-color: #121212; color: #ffffff; font-family: 'Segoe UI', sans-serif; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        
+        /* Shard Counter */
+        .shard-box { background: #1f1f1f; border: 2px solid #ff9d00; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }
+        .shard-box h1 { margin: 0; font-size: 3em; color: #ff9d00; }
+        .shard-box p { margin: 0; color: #888; letter-spacing: 2px; }
 
-const app = express();
-const port = process.env.PORT || 8000; // Fixed for Koyeb
+        /* Input Area */
+        .add-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        input[type="text"] { background: #333; border: 1px solid #444; color: white; padding: 10px; flex: 1; border-radius: 5px; }
+        button { cursor: pointer; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; }
+        .btn-add { background: #ff9d00; color: black; }
+        
+        /* Account List */
+        .account-card { background: #1e1e1e; border-radius: 8px; margin-bottom: 10px; padding: 15px; border-left: 5px solid #444; transition: 0.3s; }
+        .account-card.online { border-left-color: #00ff00; }
+        
+        .card-top { display: flex; justify-content: space-between; align-items: center; }
+        .info h3 { margin: 0; font-size: 1.2em; }
+        .info small { color: #888; }
+        .shards-pill { background: #333; color: #00ff00; padding: 2px 8px; border-radius: 10px; font-size: 0.9em; margin-top: 5px; display: inline-block; }
 
-const API_KEY = '19c1ecd1c0764028b8f61861cbd53f9b'; 
-const authDir = path.join(__dirname, 'auth');
-if (!fs.existsSync(authDir)) fs.mkdirSync(authDir);
+        .btn-con { background: #28a745; color: white; }
+        .btn-dis { background: #dc3545; color: white; }
+        .btn-chat { background: #555; color: white; margin-left: 10px; }
 
-app.use(express.static('public'));
-const accountData = new Map();
+        /* Chat Dropdown */
+        .chat-drawer { margin-top: 10px; display: none; border-top: 1px solid #333; padding-top: 10px; }
+        .chat-flex { display: flex; gap: 10px; }
+    </style>
+</head>
+<body>
 
-// Load saved accounts on startup
-if (fs.existsSync(authDir)) {
-    fs.readdirSync(authDir).forEach(email => {
-        const fullPath = path.join(authDir, email);
-        if (fs.lstatSync(fullPath).isDirectory()) {
-            accountData.set(email, { status: 'Offline', username: email, shards: "0" });
-        }
-    });
-}
+<div class="container">
+    <div class="shard-box">
+        <p>TOTAL NETWORK SHARDS</p>
+        <h1 id="totalShards">0</h1>
+    </div>
 
-function getShards(username) {
-    return new Promise((resolve) => {
-        const name = username.startsWith('.') ? username : `.${username}`;
-        const options = {
-            hostname: 'api.donutsmp.net',
-            path: `/v1/stats/${encodeURIComponent(name)}`,
-            method: 'GET',
-            headers: { 'Authorization': API_KEY }
-        };
-        const req = https.get(options, (res) => {
-            let body = '';
-            res.on('data', d => body += d);
-            res.on('end', () => {
-                try {
-                    const json = JSON.parse(body);
-                    resolve(json.result?.shards || "0");
-                } catch { resolve("0"); }
-            });
+    <div class="add-box">
+        <input type="text" id="emailInput" placeholder="Enter Microsoft Email">
+        <button class="btn-add" onclick="addAccount()">+ Add Bot</button>
+    </div>
+
+    <div id="botList"></div>
+</div>
+
+<script>
+    async function addAccount() {
+        const email = document.getElementById('emailInput').value;
+        if (!email) return;
+        await fetch(`/add?email=${email}`);
+        document.getElementById('emailInput').value = '';
+    }
+
+    async function trigger(action, email) {
+        await fetch(`/${action}?email=${email}`);
+        updateUI(); // Immediate update
+    }
+
+    function toggleChat(id) {
+        const el = document.getElementById(`chat-${id}`);
+        el.style.display = el.style.display === 'block' ? 'none' : 'block';
+    }
+
+    async function sendChat(email) {
+        const input = document.getElementById(`msg-${email}`);
+        const text = input.value;
+        if (!text) return;
+        
+        await fetch(`/chat?email=${email}&message=${encodeURIComponent(text)}`);
+        input.value = '';
+    }
+
+    async function updateUI() {
+        const res = await fetch('/status');
+        const bots = await res.json();
+        
+        const list = document.getElementById('botList');
+        let totalShards = 0;
+        let html = '';
+
+        bots.forEach(bot => {
+            totalShards += parseInt(bot.shards);
+            const isOnline = bot.status === 'Online';
+            const safeEmail = bot.email.replace(/[@.]/g, ''); // Remove symbols for ID
+
+            html += `
+            <div class="account-card ${isOnline ? 'online' : ''}">
+                <div class="card-top">
+                    <div class="info">
+                        <h3>${bot.username}</h3>
+                        <small>${bot.email} • ${bot.status}</small><br>
+                        <span class="shards-pill">${parseInt(bot.shards).toLocaleString()} Shards</span>
+                    </div>
+                    <div>
+                        ${isOnline 
+                            ? `<button class="btn-chat" onclick="toggleChat('${safeEmail}')">💬 Chat</button>
+                               <button class="btn-dis" onclick="trigger('disconnect', '${bot.email}')">Disconnect</button>`
+                            : `<button class="btn-con" onclick="trigger('connect', '${bot.email}')">Connect</button>`
+                        }
+                    </div>
+                </div>
+                
+                <div id="chat-${safeEmail}" class="chat-drawer">
+                    <div class="chat-flex">
+                        <input type="text" id="msg-${bot.email}" placeholder="Type command or message...">
+                        <button class="btn-add" onclick="sendChat('${bot.email}')">Send</button>
+                    </div>
+                </div>
+            </div>`;
         });
-        req.on('error', () => resolve("0"));
-        req.end();
-    });
-}
 
-async function startBot(email) {
-    const existing = accountData.get(email);
-    if (existing?.status === 'Online') return;
-    accountData.set(email, { ...existing, status: 'Connecting...' });
+        // Only update HTML if account count changed or to refresh status, 
+        // effectively simplistic diffing to keep chat boxes open would require more logic, 
+        // but for now we just rebuild. 
+        // NOTE: In a real app, you'd want to avoid overwriting open chat boxes.
+        // For this simple version, chat boxes might close on refresh. 
+        // To prevent closing, we only update if user isn't typing (simple check) or use React/Vue.
+        // For now, let's just update the specific text elements if possible, or accept the refresh.
+        
+        // Simple full rebuild for now:
+        list.innerHTML = html;
+        document.getElementById('totalShards').innerText = totalShards.toLocaleString();
+    }
 
-    const flow = new Authflow(email, path.join(authDir, email), {
-        flow: 'msal', authTitle: 'MinecraftJava',
-        onMsaCode: (data) => console.log(`\n[${email}] AUTH CODE: ${data.user_code}\n`)
-    });
+    // Refresh every 3 seconds
+    setInterval(updateUI, 3000);
+    updateUI();
+</script>
 
-    try {
-        const client = bedrock.createClient({
-            host: 'donutsmp.net', port: 19132,
-            authFlow: flow, profilesFolder: path.join(authDir, email), skipPing: true
-        });
-
-        client.on('spawn', async () => {
-            const name = client.username.startsWith('.') ? client.username : `.${client.username}`;
-            const shards = await getShards(name);
-            accountData.set(email, { client, status: 'Online', username: name, shards });
-        });
-
-        client.on('error', () => accountData.set(email, { ...accountData.get(email), status: 'Offline', client: null }));
-        client.on('close', () => accountData.set(email, { ...accountData.get(email), status: 'Offline', client: null }));
-    } catch (e) { accountData.set(email, { status: 'Error', username: email }); }
-}
-
-// --- ROUTES ---
-app.get('/add', (req, res) => { startBot(req.query.email); res.send("OK"); });
-app.get('/connect', (req, res) => { startBot(req.query.email); res.send("OK"); });
-app.get('/disconnect', (req, res) => {
-    const bot = accountData.get(req.query.email);
-    if (bot?.client) bot.client.disconnect();
-    res.send("OK");
-});
-
-// NEW: Manual Shard Update Route
-app.get('/update-shards', async (req, res) => {
-    const bot = accountData.get(req.query.email);
-    if (bot) {
-        const s = await getShards(bot.username);
-        accountData.set(req.query.email, { ...bot, shards: s });
-        res.json({ shards: s });
-    } else { res.status(404).send("Not Found"); }
-});
-
-app.get('/status', (req, res) => {
-    const list = Array.from(accountData.entries()).map(([email, info]) => ({
-        email, status: info.status, username: info.username, shards: info.shards
-    }));
-    res.json(list);
-});
-
-app.listen(port, () => console.log(`Dashboard active on port ${port}`));
+</body>
+</html>
