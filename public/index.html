@@ -1,105 +1,52 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>DonutSMP Bot Manager</title>
-    <style>
-        body { background-color: #121212; color: #ffffff; font-family: 'Segoe UI', sans-serif; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        
-        /* Shard Counter */
-        .shard-box { background: #1f1f1f; border: 2px solid #ff9d00; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }
-        .shard-box h1 { margin: 0; font-size: 3em; color: #ff9d00; }
-        .shard-box p { margin: 0; color: #888; letter-spacing: 2px; }
+async function updateUI() {
+    const res = await fetch('/status');
+    const bots = await res.json();
+    const list = document.getElementById('botList');
+    let totalShards = 0;
+    let html = '';
 
-        /* Input Area */
-        .add-box { display: flex; gap: 10px; margin-bottom: 20px; }
-        input[type="text"] { background: #333; border: 1px solid #444; color: white; padding: 10px; flex: 1; border-radius: 5px; }
-        button { cursor: pointer; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; }
-        .btn-add { background: #ff9d00; color: black; }
-        
-        /* Account List */
-        .account-card { background: #1e1e1e; border-radius: 8px; margin-bottom: 10px; padding: 15px; border-left: 5px solid #444; transition: 0.3s; }
-        .account-card.online { border-left-color: #00ff00; }
-        
-        .card-top { display: flex; justify-content: space-between; align-items: center; }
-        .info h3 { margin: 0; font-size: 1.2em; }
-        .info small { color: #888; }
-        .shards-pill { background: #333; color: #00ff00; padding: 2px 8px; border-radius: 10px; font-size: 0.9em; margin-top: 5px; display: inline-block; }
+    bots.forEach(bot => {
+        totalShards += parseInt(bot.shards);
+        const isOnline = bot.status === 'Online';
+        const safeEmail = bot.email.replace(/[@.]/g, '');
 
-        .btn-con { background: #28a745; color: white; }
-        .btn-dis { background: #dc3545; color: white; }
-        .btn-chat { background: #555; color: white; margin-left: 10px; }
-
-        /* Chat Dropdown */
-        .chat-drawer { margin-top: 10px; display: none; border-top: 1px solid #333; padding-top: 10px; }
-        .chat-flex { display: flex; gap: 10px; }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <div class="shard-box">
-        <p>TOTAL NETWORK SHARDS</p>
-        <h1 id="totalShards">0</h1>
-    </div>
-
-    <div class="add-box">
-        <input type="text" id="emailInput" placeholder="Enter Microsoft Email">
-        <button class="btn-add" onclick="addAccount()">+ Add Bot</button>
-    </div>
-
-    <div id="botList"></div>
-</div>
-
-<script>
-    // ... addAccount, trigger, and other functions remain the same ...
-
-    async function refreshShards(email) {
-        const res = await fetch(`/update-shards?email=${email}`);
-        const data = await res.json();
-        console.log(`Updated shards for ${email}: ${data.shards}`);
-        updateUI(); // Refresh the list to show new number
-    }
-
-    async function updateUI() {
-        const res = await fetch('/status');
-        const bots = await res.json();
-        const list = document.getElementById('botList');
-        let totalShards = 0;
-        let html = '';
-
-        bots.forEach(bot => {
-            totalShards += parseInt(bot.shards);
-            const isOnline = bot.status === 'Online';
-            const safeEmail = bot.email.replace(/[@.]/g, '');
-
-            html += `
-            <div class="account-card ${isOnline ? 'online' : ''}">
-                <div class="card-top">
-                    <div class="info">
-                        <h3>${bot.username}</h3>
-                        <small>${bot.email} • ${bot.status}</small><br>
-                        <span class="shards-pill">${parseInt(bot.shards).toLocaleString()} Shards</span>
-                        <button style="background:none; border:none; color:#ff9d00; cursor:pointer; font-size:0.8em;" 
-                                onclick="refreshShards('${bot.email}')">🔄 Refresh</button>
-                    </div>
-                    <div>
-                        ${isOnline 
-                            ? `<button class="btn-chat" onclick="toggleChat('${safeEmail}')">💬 Chat</button>
-                               <button class="btn-dis" onclick="trigger('disconnect', '${bot.email}')">Disconnect</button>`
-                            : `<button class="btn-con" onclick="trigger('connect', '${bot.email}')">Connect</button>`
-                        }
-                    </div>
+        html += `
+        <div class="account-card ${isOnline ? 'online' : ''}">
+            <div class="card-top">
+                <div class="info">
+                    <h3>${bot.username}</h3>
+                    <small>${bot.email} • ${bot.status}</small><br>
+                    <span class="shards-pill">${parseInt(bot.shards).toLocaleString()} Shards</span>
+                    <button style="background:none; border:none; color:#ff9d00; cursor:pointer;" onclick="refreshShards('${bot.email}')">🔄 Refresh</button>
                 </div>
-                </div>`;
-        });
-        list.innerHTML = html;
-        document.getElementById('totalShards').innerText = totalShards.toLocaleString();
-    }
-    setInterval(updateUI, 3000);
-    updateUI();
-</script>
+                <div>
+                    ${isOnline 
+                        ? `<button class="btn-chat" onclick="toggleChat('${safeEmail}')">💬 Chat</button>
+                           <button class="btn-dis" onclick="trigger('disconnect', '${bot.email}')">Disconnect</button>`
+                        : `<button class="btn-con" onclick="trigger('connect', '${bot.email}')">Connect</button>`
+                    }
+                </div>
+            </div>
+            <div id="chat-${safeEmail}" class="chat-drawer" style="display:none; margin-top:10px; border-top:1px solid #333; padding-top:10px;">
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="msg-${bot.email}" placeholder="Type /afk or a message..." style="flex:1; background:#333; color:white; border:1px solid #444; padding:5px;">
+                    <button class="btn-add" onclick="sendChat('${bot.email}')">Send</button>
+                </div>
+            </div>
+        </div>`;
+    });
+    list.innerHTML = html;
+    document.getElementById('totalShards').innerText = totalShards.toLocaleString();
+}
 
-</body>
-</html>
+async function sendChat(email) {
+    const input = document.getElementById(`msg-${email}`);
+    if (!input.value) return;
+    await fetch(`/chat?email=${email}&message=${encodeURIComponent(input.value)}`);
+    input.value = '';
+}
+
+function toggleChat(id) {
+    const el = document.getElementById(`chat-${id}`);
+    el.style.display = el.style.display === 'block' ? 'none' : 'block';
+}
