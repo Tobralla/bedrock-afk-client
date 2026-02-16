@@ -6,19 +6,16 @@ const fs = require('fs');
 const https = require('https');
 
 const app = express();
-// Priority 1: Use the port provided by the host (Koyeb/Railway)
-// Priority 2: Use 8000 as a fallback
-const port = process.env.PORT || 8000;
+const port = process.env.PORT || 8000; // Fixed for Koyeb
 
 const API_KEY = '19c1ecd1c0764028b8f61861cbd53f9b'; 
 const authDir = path.join(__dirname, 'auth');
 if (!fs.existsSync(authDir)) fs.mkdirSync(authDir);
 
 app.use(express.static('public'));
-
 const accountData = new Map();
 
-// Load existing account folders on startup
+// Load saved accounts on startup
 if (fs.existsSync(authDir)) {
     fs.readdirSync(authDir).forEach(email => {
         const fullPath = path.join(authDir, email);
@@ -53,45 +50,33 @@ function getShards(username) {
 }
 
 async function startBot(email) {
-    if (accountData.get(email)?.status === 'Online') return;
-    accountData.set(email, { status: 'Connecting...', username: email, shards: "0" });
+    const existing = accountData.get(email);
+    if (existing?.status === 'Online') return;
+    accountData.set(email, { ...existing, status: 'Connecting...' });
 
     const flow = new Authflow(email, path.join(authDir, email), {
-        flow: 'msal',
+        flow: 'msal', authTitle: 'MinecraftJava',
         onMsaCode: (data) => console.log(`\n[${email}] AUTH CODE: ${data.user_code}\n`)
     });
 
     try {
         const client = bedrock.createClient({
-            host: 'donutsmp.net',
-            port: 19132,
-            authFlow: flow,
-            profilesFolder: path.join(authDir, email),
-            skipPing: true
+            host: 'donutsmp.net', port: 19132,
+            authFlow: flow, profilesFolder: path.join(authDir, email), skipPing: true
         });
 
         client.on('spawn', async () => {
             const name = client.username.startsWith('.') ? client.username : `.${client.username}`;
             const shards = await getShards(name);
             accountData.set(email, { client, status: 'Online', username: name, shards });
-            console.log(`[${email}] Success: ${name} is now AFK.`);
         });
 
-        client.on('error', (err) => {
-            console.error(`[${email}] Error: ${err.message}`);
-            accountData.set(email, { status: 'Offline', username: email, shards: "0" });
-        });
-
-        client.on('close', () => {
-            accountData.set(email, { status: 'Offline', username: email, shards: "0" });
-        });
-    } catch (e) {
-        accountData.set(email, { status: 'Error', username: email });
-    }
+        client.on('error', () => accountData.set(email, { ...accountData.get(email), status: 'Offline', client: null }));
+        client.on('close', () => accountData.set(email, { ...accountData.get(email), status: 'Offline', client: null }));
+    } catch (e) { accountData.set(email, { status: 'Error', username: email }); }
 }
 
-// --- API ROUTES ---
-
+// --- ROUTES ---
 app.get('/add', (req, res) => { startBot(req.query.email); res.send("OK"); });
 app.get('/connect', (req, res) => { startBot(req.query.email); res.send("OK"); });
 app.get('/disconnect', (req, res) => {
@@ -100,6 +85,7 @@ app.get('/disconnect', (req, res) => {
     res.send("OK");
 });
 
+// NEW: Manual Shard Update Route
 app.get('/update-shards', async (req, res) => {
     const bot = accountData.get(req.query.email);
     if (bot) {
@@ -109,18 +95,6 @@ app.get('/update-shards', async (req, res) => {
     } else { res.status(404).send("Not Found"); }
 });
 
-app.get('/chat', (req, res) => {
-    const { email, message } = req.query;
-    const bot = accountData.get(email);
-    if (bot?.client && bot.status === 'Online') {
-        bot.client.queue('text', {
-            type: 'chat', needs_translation: false, source_name: bot.client.username,
-            message: String(message), xuid: '', platform_chat_id: '', filtered_message: ''
-        });
-        res.send("Sent");
-    } else { res.status(400).send("Offline"); }
-});
-
 app.get('/status', (req, res) => {
     const list = Array.from(accountData.entries()).map(([email, info]) => ({
         email, status: info.status, username: info.username, shards: info.shards
@@ -128,6 +102,4 @@ app.get('/status', (req, res) => {
     res.json(list);
 });
 
-app.listen(port, () => {
-    console.log(`\n--- DonutSMP AFK Client ---\nDashboard active on port ${port}\n`);
-});
+app.listen(port, () => console.log(`Dashboard active on port ${port}`));
