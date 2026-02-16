@@ -16,13 +16,12 @@
         .account-card { background: #1e1e1e; border-radius: 8px; margin-bottom: 10px; padding: 15px; border-left: 5px solid #444; }
         .account-card.online { border-left-color: #00ff00; }
         .card-top { display: flex; justify-content: space-between; align-items: center; }
-        .info h3 { margin: 0; font-size: 1.2em; }
         .shards-pill { background: #333; color: #00ff00; padding: 2px 8px; border-radius: 10px; font-size: 0.9em; margin-top: 5px; display: inline-block; }
         .btn-con { background: #28a745; color: white; }
         .btn-dis { background: #dc3545; color: white; }
-        .btn-chat { background: #555; color: white; margin-left: 10px; }
-        .chat-drawer { margin-top: 10px; border-top: 1px solid #333; padding-top: 10px; }
-        .btn-refresh { background: none; border: none; color: #ff9d00; cursor: pointer; font-size: 0.85em; text-decoration: underline; margin-left: 5px; }
+        .btn-refresh { background: #007bff; color: white; font-size: 0.7em; padding: 4px 8px; margin-left: 10px; vertical-align: middle; }
+        .chat-drawer { margin-top: 15px; padding-top: 15px; border-top: 1px solid #333; }
+        .chat-flex { display: flex; gap: 10px; }
     </style>
 </head>
 <body>
@@ -45,32 +44,31 @@
     async function addAccount() {
         const email = document.getElementById('emailInput').value;
         if (!email) return;
-        await fetch(`/add?email=${email}`);
+        await fetch(`/add?email=${encodeURIComponent(email)}`);
         document.getElementById('emailInput').value = '';
         updateUI();
     }
 
     async function trigger(action, email) {
-        await fetch(`/${action}?email=${email}`);
+        await fetch(`/${action}?email=${encodeURIComponent(email)}`);
         updateUI();
     }
 
     async function refreshShards(email) {
-        await fetch(`/update-shards?email=${email}`);
+        const btn = event.target;
+        btn.innerText = "Wait...";
+        await fetch(`/update-shards?email=${encodeURIComponent(email)}`);
         updateUI();
     }
 
     async function sendChat(email) {
-        const input = document.getElementById(`msg-${email}`);
+        const safeId = email.replace(/[@.]/g, '');
+        const input = document.getElementById(`msg-${safeId}`);
         const text = input.value;
         if (!text) return;
-        await fetch(`/chat?email=${email}&message=${encodeURIComponent(text)}`);
+        
+        await fetch(`/chat?email=${encodeURIComponent(email)}&message=${encodeURIComponent(text)}`);
         input.value = '';
-    }
-
-    function toggleChat(id) {
-        const el = document.getElementById(`chat-${id}`);
-        el.style.display = el.style.display === 'block' ? 'none' : 'block';
     }
 
     async function updateUI() {
@@ -81,41 +79,46 @@
         let html = '';
 
         bots.forEach(bot => {
-            totalShards += parseInt(bot.shards);
+            const shards = parseInt(bot.shards) || 0;
+            totalShards += shards;
             const isOnline = bot.status === 'Online';
-            const safeEmail = bot.email.replace(/[@.]/g, '');
+            const safeId = bot.email.replace(/[@.]/g, '');
 
             html += `
-            <div class="account-card ${isOnline ? 'online' : ''}">
-                <div class="card-top">
-                    <div class="info">
-                        <h3>${bot.username}</h3>
-                        <small>${bot.email} • ${bot.status}</small><br>
-                        <span class="shards-pill">${parseInt(bot.shards).toLocaleString()} Shards</span>
-                        <button class="btn-refresh" onclick="refreshShards('${bot.email}')">Refresh Shards</button>
+                <div class="account-card ${isOnline ? 'online' : ''}">
+                    <div class="card-top">
+                        <div class="info">
+                            <h3>${bot.username || 'Connecting...'}</h3>
+                            <small>${bot.email} • ${bot.status}</small><br>
+                            <span class="shards-pill">${shards.toLocaleString()} Shards</span>
+                            <button class="btn-refresh" onclick="refreshShards('${bot.email}')">Update</button>
+                        </div>
+                        <div>
+                            ${isOnline 
+                                ? `<button class="btn-dis" onclick="trigger('disconnect', '${bot.email}')">Disconnect</button>`
+                                : `<button class="btn-con" onclick="trigger('connect', '${bot.email}')">Connect</button>`
+                            }
+                        </div>
                     </div>
-                    <div>
-                        ${isOnline 
-                            ? `<button class="btn-chat" onclick="toggleChat('${safeEmail}')">💬 Chat</button>
-                               <button class="btn-dis" onclick="trigger('disconnect', '${bot.email}')">Disconnect</button>`
-                            : `<button class="btn-con" onclick="trigger('connect', '${bot.email}')">Connect</button>`
-                        }
-                    </div>
-                </div>
-                <div id="chat-${safeEmail}" class="chat-drawer" style="display:none;">
-                    <div style="display:flex; gap:10px;">
-                        <input type="text" id="msg-${bot.email}" placeholder="Type message or command...">
-                        <button class="btn-add" onclick="sendChat('${bot.email}')">Send</button>
-                    </div>
-                </div>
-            </div>`;
+                    ${isOnline ? `
+                    <div class="chat-drawer">
+                        <div class="chat-flex">
+                            <input type="text" id="msg-${safeId}" placeholder="Type message..." onkeypress="if(event.key==='Enter') sendChat('${bot.email}')">
+                            <button class="btn-add" onclick="sendChat('${bot.email}')">Send</button>
+                        </div>
+                    </div>` : ''}
+                </div>`;
         });
 
-        list.innerHTML = html;
+        // We only update innerHTML if the content is actually different to prevent 
+        // losing focus on the input fields while typing.
+        if (list.innerHTML !== html) {
+            list.innerHTML = html;
+        }
         document.getElementById('totalShards').innerText = totalShards.toLocaleString();
     }
 
-    setInterval(updateUI, 5000);
+    setInterval(updateUI, 3000);
     updateUI();
 </script>
 
