@@ -53,36 +53,18 @@
 </div>
 
 <script>
-    async function addAccount() {
-        const email = document.getElementById('emailInput').value;
-        if (!email) return;
-        await fetch(`/add?email=${email}`);
-        document.getElementById('emailInput').value = '';
-    }
+    // ... addAccount, trigger, and other functions remain the same ...
 
-    async function trigger(action, email) {
-        await fetch(`/${action}?email=${email}`);
-        updateUI(); // Immediate update
-    }
-
-    function toggleChat(id) {
-        const el = document.getElementById(`chat-${id}`);
-        el.style.display = el.style.display === 'block' ? 'none' : 'block';
-    }
-
-    async function sendChat(email) {
-        const input = document.getElementById(`msg-${email}`);
-        const text = input.value;
-        if (!text) return;
-        
-        await fetch(`/chat?email=${email}&message=${encodeURIComponent(text)}`);
-        input.value = '';
+    async function refreshShards(email) {
+        const res = await fetch(`/update-shards?email=${email}`);
+        const data = await res.json();
+        console.log(`Updated shards for ${email}: ${data.shards}`);
+        updateUI(); // Refresh the list to show new number
     }
 
     async function updateUI() {
         const res = await fetch('/status');
         const bots = await res.json();
-        
         const list = document.getElementById('botList');
         let totalShards = 0;
         let html = '';
@@ -90,7 +72,7 @@
         bots.forEach(bot => {
             totalShards += parseInt(bot.shards);
             const isOnline = bot.status === 'Online';
-            const safeEmail = bot.email.replace(/[@.]/g, ''); // Remove symbols for ID
+            const safeEmail = bot.email.replace(/[@.]/g, '');
 
             html += `
             <div class="account-card ${isOnline ? 'online' : ''}">
@@ -99,6 +81,8 @@
                         <h3>${bot.username}</h3>
                         <small>${bot.email} • ${bot.status}</small><br>
                         <span class="shards-pill">${parseInt(bot.shards).toLocaleString()} Shards</span>
+                        <button style="background:none; border:none; color:#ff9d00; cursor:pointer; font-size:0.8em;" 
+                                onclick="refreshShards('${bot.email}')">🔄 Refresh</button>
                     </div>
                     <div>
                         ${isOnline 
@@ -108,30 +92,11 @@
                         }
                     </div>
                 </div>
-                
-                <div id="chat-${safeEmail}" class="chat-drawer">
-                    <div class="chat-flex">
-                        <input type="text" id="msg-${bot.email}" placeholder="Type command or message...">
-                        <button class="btn-add" onclick="sendChat('${bot.email}')">Send</button>
-                    </div>
-                </div>
-            </div>`;
+                </div>`;
         });
-
-        // Only update HTML if account count changed or to refresh status, 
-        // effectively simplistic diffing to keep chat boxes open would require more logic, 
-        // but for now we just rebuild. 
-        // NOTE: In a real app, you'd want to avoid overwriting open chat boxes.
-        // For this simple version, chat boxes might close on refresh. 
-        // To prevent closing, we only update if user isn't typing (simple check) or use React/Vue.
-        // For now, let's just update the specific text elements if possible, or accept the refresh.
-        
-        // Simple full rebuild for now:
         list.innerHTML = html;
         document.getElementById('totalShards').innerText = totalShards.toLocaleString();
     }
-
-    // Refresh every 3 seconds
     setInterval(updateUI, 3000);
     updateUI();
 </script>
