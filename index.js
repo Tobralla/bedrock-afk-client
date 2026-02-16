@@ -102,4 +102,25 @@ app.get('/status', (req, res) => {
     res.json(list);
 });
 
+// --- NEW: Chat Route ---
+app.get('/chat', (req, res) => {
+    const { email, message } = req.query;
+    const bot = accountData.get(email);
+    
+    if (bot && bot.client && bot.status === 'Online') {
+        // Using your verified 'raw' packet structure
+        bot.client.queue('text', {
+            type: 'raw', 
+            needs_translation: false, 
+            source_name: '',
+            message: String(message), 
+            xuid: '', 
+            platform_chat_id: ''
+        });
+        res.send("OK");
+    } else {
+        res.status(400).send("Bot offline or not found");
+    }
+});
+
 app.listen(port, () => console.log(`Dashboard active on port ${port}`));
