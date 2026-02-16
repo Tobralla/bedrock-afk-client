@@ -184,7 +184,12 @@ app.get('/logs', (req, res) => res.json(debugLogs));
 
 app.get('/status', (req, res) => {
     const list = Array.from(accountData.entries()).map(([email, info]) => ({
-        email, status: info.status, username: info.username, shards: info.shards, proxy: info.proxy
+        email, 
+        status: info.status, 
+        username: info.username, 
+        shards: info.shards,
+        // Make sure this specific line is here:
+        proxy: info.proxy || 'None' 
     }));
     res.json(list);
 });
