@@ -25,10 +25,40 @@ const PROXIES = [
     'socks5://inxxafk_73QY2:QaReEvB=e7=61l2@dc.oxylabs.io:8005'
 ];
 const ACCOUNTS_PER_PROXY = 5;
-const CONNECTION_TIMEOUT = 20000; // 20 Seconds to connect
+const CONNECTION_TIMEOUT = 30000; // Increased to 30 seconds
 
 const accountData = new Map();
 let debugLogs = [];
+
+// --- CONNECTION QUEUE ---
+// This prevents all bots from connecting at the exact same time
+let connectionQueue = [];
+let isConnecting = false;
+
+async function processQueue() {
+    if (isConnecting || connectionQueue.length === 0) return;
+    isConnecting = true;
+
+    const { email, resolve } = connectionQueue.shift();
+    
+    // Wait 3 seconds between starting each bot to prevent proxy flooding
+    console.log(`Processing queue for ${email}... Waiting 3s.`);
+    await new Promise(r => setTimeout(r, 3000));
+
+    await actuallyStartBot(email); // The real start function
+    resolve();
+    
+    isConnecting = false;
+    processQueue(); // Check if next is waiting
+}
+
+function startBot(email) {
+    return new Promise((resolve) => {
+        connectionQueue.push({ email, resolve });
+        processQueue();
+    });
+}
+// -----------------------
 
 function addLog(email, message) {
     const entry = `[${new Date().toLocaleTimeString()}] [${email}] ${message}`;
@@ -76,7 +106,7 @@ function getShards(username) {
     });
 }
 
-async function startBot(email) {
+async function actuallyStartBot(email) {
     const existing = accountData.get(email);
     if (existing?.status === 'Online' || existing?.status === 'Connecting...') return;
 
@@ -111,19 +141,16 @@ async function startBot(email) {
     try {
         const url = new URL(proxyString);
         
-        // --- TIMEOUT LOGIC ---
         let timeout = setTimeout(() => {
-            addLog(email, "Connection TIMEOUT (20s). Retrying...");
+            addLog(email, "Connection TIMEOUT. Retrying...");
             const bot = accountData.get(email);
             if (bot?.client) {
                 try { bot.client.disconnect(); } catch (e) {}
             }
-            // Only retry if we are still stuck in connecting
-            if (accountData.get(email)?.status === 'Connecting...') {
-                startBot(email); // Auto-Retry
-            }
+            // Auto-retry logic
+            accountData.set(email, { ...bot, status: 'Offline', client: null });
+            startBot(email); 
         }, CONNECTION_TIMEOUT);
-        // ---------------------
 
         const client = bedrock.createClient({
             host: 'donutsmp.net',
@@ -132,31 +159,26 @@ async function startBot(email) {
             profilesFolder: path.join(authDir, email),
             skipPing: true,
             connect: async (address, port) => {
-                addLog(email, `Tunneling proxy...`);
-                try {
-                    const info = await SocksClient.createConnection({
-                        proxy: {
-                            host: url.hostname,
-                            port: parseInt(url.port),
-                            type: 5,
-                            userId: url.username,
-                            password: url.password
-                        },
-                        command: 'connect',
-                        destination: { host: address, port: port },
-                        timeout: 10000
-                    });
-                    addLog(email, "Proxy connected.");
-                    return info.socket;
-                } catch (proxyErr) {
-                    addLog(email, `PROXY ERROR: ${proxyErr.message}`);
-                    throw proxyErr;
-                }
+                addLog(email, `Tunneling...`);
+                const info = await SocksClient.createConnection({
+                    proxy: {
+                        host: url.hostname,
+                        port: parseInt(url.port),
+                        type: 5,
+                        userId: url.username,
+                        password: url.password
+                    },
+                    command: 'connect',
+                    destination: { host: address, port: port },
+                    timeout: 15000
+                });
+                addLog(email, "Proxy OK.");
+                return info.socket;
             }
         });
 
         client.on('spawn', async () => {
-            clearTimeout(timeout); // STOP the timeout timer
+            clearTimeout(timeout);
             const name = client.username.startsWith('.') ? client.username : `.${client.username}`;
             const shards = await getShards(name);
             accountData.set(email, { client, status: 'Online', username: name, shards, proxy: proxyLabel, authCode: null, authUrl: null });
@@ -165,7 +187,7 @@ async function startBot(email) {
 
         client.on('error', (err) => {
             clearTimeout(timeout);
-            addLog(email, `CLIENT ERROR: ${err.message}`);
+            addLog(email, `ERROR: ${err.message}`);
             const current = accountData.get(email);
             if(current) accountData.set(email, { ...current, status: 'Error', client: null });
         });
@@ -214,8 +236,8 @@ app.get('/remove', (req, res) => {
     if (fs.existsSync(userAuthPath)) {
         try {
             fs.rmSync(userAuthPath, { recursive: true, force: true });
-            addLog(email, "Account data deleted.");
-        } catch (err) { addLog(email, `Error deleting: ${err.message}`); }
+            addLog(email, "Account deleted.");
+        } catch (err) { addLog(email, `Delete error: ${err.message}`); }
     }
     res.send("OK");
 });
@@ -257,7 +279,7 @@ app.get('/update-shards', async (req, res) => {
 });
 
 app.get('/update-all-shards', async (req, res) => {
-    addLog("SYSTEM", "Bulk shard update...");
+    addLog("SYSTEM", "Bulk update...");
     const promises = [];
     accountData.forEach((bot, email) => {
         if(bot.username && bot.username !== email) {
@@ -265,7 +287,7 @@ app.get('/update-all-shards', async (req, res) => {
         }
     });
     await Promise.all(promises);
-    addLog("SYSTEM", "Update complete.");
+    addLog("SYSTEM", "Done.");
     res.send("OK");
 });
 
