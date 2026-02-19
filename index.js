@@ -1,3 +1,7 @@
+process.on('unhandledRejection', (reason, promise) => {
+  console.log('Unhandled Rejection:', reason);
+});
+
 const bedrock = require('bedrock-protocol');
 const { Authflow } = require('prismarine-auth');
 const express = require('express');
@@ -21,6 +25,7 @@ const PROXIES = [
     'socks5://inxxafk_73QY2:QaReEvB=e7=61l2@dc.oxylabs.io:8005'
 ];
 const ACCOUNTS_PER_PROXY = 5;
+const CONNECTION_TIMEOUT = 20000; // 20 Seconds to connect
 
 const accountData = new Map();
 let debugLogs = [];
@@ -28,11 +33,10 @@ let debugLogs = [];
 function addLog(email, message) {
     const entry = `[${new Date().toLocaleTimeString()}] [${email}] ${message}`;
     debugLogs.push(entry);
-    if (debugLogs.length > 100) debugLogs.shift(); // Increased log size slightly
+    if (debugLogs.length > 100) debugLogs.shift(); 
     console.log(entry);
 }
 
-// Load existing accounts
 if (fs.existsSync(authDir)) {
     fs.readdirSync(authDir).forEach(email => {
         const fullPath = path.join(authDir, email);
@@ -84,23 +88,43 @@ async function startBot(email) {
     addLog(email, `Initializing via proxy: ${proxyLabel}`);
     accountData.set(email, { ...existing, status: 'Connecting...', proxy: proxyLabel, authCode: null, authUrl: null });
 
-    const flow = new Authflow(email, path.join(authDir, email), {
-        flow: 'msal', 
-        authTitle: 'MinecraftPe', // IMPORTANT: Use MinecraftPe for Bedrock
-        onMsaCode: (data) => {
-            accountData.set(email, { 
-                ...accountData.get(email), 
-                status: 'Authenticating',
-                authCode: data.user_code,
-                authUrl: data.verification_uri
-            });
-            addLog(email, `AUTH REQUIRED: Go to ${data.verification_uri} and enter code: ${data.user_code}`);
-        }
-    });
+    let flow;
+    try {
+        flow = new Authflow(email, path.join(authDir, email), {
+            flow: 'msal', 
+            authTitle: 'MinecraftPe',
+            onMsaCode: (data) => {
+                accountData.set(email, { 
+                    ...accountData.get(email), 
+                    status: 'Authenticating',
+                    authCode: data.user_code,
+                    authUrl: data.verification_uri
+                });
+                addLog(email, `AUTH REQUIRED: ${data.user_code}`);
+            }
+        });
+    } catch (e) {
+        addLog(email, `AUTHFLOW ERROR: ${e.message}`);
+        return;
+    }
 
     try {
         const url = new URL(proxyString);
         
+        // --- TIMEOUT LOGIC ---
+        let timeout = setTimeout(() => {
+            addLog(email, "Connection TIMEOUT (20s). Retrying...");
+            const bot = accountData.get(email);
+            if (bot?.client) {
+                try { bot.client.disconnect(); } catch (e) {}
+            }
+            // Only retry if we are still stuck in connecting
+            if (accountData.get(email)?.status === 'Connecting...') {
+                startBot(email); // Auto-Retry
+            }
+        }, CONNECTION_TIMEOUT);
+        // ---------------------
+
         const client = bedrock.createClient({
             host: 'donutsmp.net',
             port: 19132,
@@ -108,7 +132,7 @@ async function startBot(email) {
             profilesFolder: path.join(authDir, email),
             skipPing: true,
             connect: async (address, port) => {
-                addLog(email, `Opening proxy tunnel to ${address}:${port}...`);
+                addLog(email, `Tunneling proxy...`);
                 try {
                     const info = await SocksClient.createConnection({
                         proxy: {
@@ -120,18 +144,19 @@ async function startBot(email) {
                         },
                         command: 'connect',
                         destination: { host: address, port: port },
-                        timeout: 10000 // 10 second timeout for proxy
+                        timeout: 10000
                     });
-                    addLog(email, "Proxy tunnel established successfully.");
+                    addLog(email, "Proxy connected.");
                     return info.socket;
                 } catch (proxyErr) {
                     addLog(email, `PROXY ERROR: ${proxyErr.message}`);
-                    throw proxyErr; // This ensures the client knows connection failed
+                    throw proxyErr;
                 }
             }
         });
 
         client.on('spawn', async () => {
+            clearTimeout(timeout); // STOP the timeout timer
             const name = client.username.startsWith('.') ? client.username : `.${client.username}`;
             const shards = await getShards(name);
             accountData.set(email, { client, status: 'Online', username: name, shards, proxy: proxyLabel, authCode: null, authUrl: null });
@@ -139,12 +164,14 @@ async function startBot(email) {
         });
 
         client.on('error', (err) => {
+            clearTimeout(timeout);
             addLog(email, `CLIENT ERROR: ${err.message}`);
             const current = accountData.get(email);
             if(current) accountData.set(email, { ...current, status: 'Error', client: null });
         });
 
         client.on('close', () => {
+            clearTimeout(timeout);
             addLog(email, "Connection closed.");
             const current = accountData.get(email);
             if(current) accountData.set(email, { ...current, status: 'Offline', client: null });
@@ -157,7 +184,6 @@ async function startBot(email) {
 }
 
 // --- ROUTES ---
-
 app.get('/add', (req, res) => {
     const email = req.query.email;
     if (!accountData.has(email)) {
@@ -188,7 +214,7 @@ app.get('/remove', (req, res) => {
     if (fs.existsSync(userAuthPath)) {
         try {
             fs.rmSync(userAuthPath, { recursive: true, force: true });
-            addLog(email, "Account data deleted from disk.");
+            addLog(email, "Account data deleted.");
         } catch (err) { addLog(email, `Error deleting: ${err.message}`); }
     }
     res.send("OK");
