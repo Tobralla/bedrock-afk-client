@@ -13,7 +13,6 @@ const API_KEY = '19c1ecd1c0764028b8f61861cbd53f9b';
 const authDir = path.join(__dirname, 'auth');
 if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true });
 
-// --- OXYLABS PROXY CONFIGURATION ---
 const PROXIES = [
     'socks5://inxxafk_73QY2:QaReEvB=e7=61l2@dc.oxylabs.io:8001',
     'socks5://inxxafk_73QY2:QaReEvB=e7=61l2@dc.oxylabs.io:8002',
@@ -33,8 +32,6 @@ function addLog(email, message) {
     console.log(entry);
 }
 
-// --- PERSISTENT ACCOUNT LOADING ---
-// This scans your auth folder to make sure bots show up on refresh
 if (fs.existsSync(authDir)) {
     fs.readdirSync(authDir).forEach(email => {
         const fullPath = path.join(authDir, email);
@@ -78,19 +75,29 @@ async function startBot(email) {
     const existing = accountData.get(email);
     if (existing?.status === 'Online' || existing?.status === 'Connecting...') return;
 
-    // Assignment Logic
     const allEmails = Array.from(accountData.keys());
     const accountIndex = allEmails.indexOf(email);
     const proxyString = PROXIES[Math.floor(accountIndex / ACCOUNTS_PER_PROXY) % PROXIES.length];
     const proxyLabel = proxyString.split('@')[1]; 
 
     addLog(email, `Initializing via proxy: ${proxyLabel}`);
-    accountData.set(email, { ...existing, status: 'Connecting...', proxy: proxyLabel });
+    
+    // Set initial connecting state
+    accountData.set(email, { ...existing, status: 'Connecting...', proxy: proxyLabel, authCode: null, authUrl: null });
 
     const flow = new Authflow(email, path.join(authDir, email), {
         flow: 'msal', 
         authTitle: 'MinecraftJava',
-        onMsaCode: (data) => addLog(email, `AUTH REQUIRED: ${data.user_code}`)
+        onMsaCode: (data) => {
+            // NEW: Update account data to show Auth UI on frontend
+            accountData.set(email, { 
+                ...accountData.get(email), 
+                status: 'Authenticating',
+                authCode: data.user_code,
+                authUrl: data.verification_uri
+            });
+            addLog(email, `AUTH REQUIRED: Go to ${data.verification_uri} and enter code: ${data.user_code}`);
+        }
     });
 
     try {
@@ -119,32 +126,35 @@ async function startBot(email) {
         client.on('spawn', async () => {
             const name = client.username.startsWith('.') ? client.username : `.${client.username}`;
             const shards = await getShards(name);
-            accountData.set(email, { client, status: 'Online', username: name, shards, proxy: proxyLabel });
+            // Clear auth data on success
+            accountData.set(email, { client, status: 'Online', username: name, shards, proxy: proxyLabel, authCode: null, authUrl: null });
             addLog(email, `SUCCESS: Spawned as ${name}`);
         });
 
         client.on('error', (err) => {
             addLog(email, `ERROR: ${err.message}`);
-            accountData.set(email, { ...accountData.get(email), status: 'Offline', client: null });
+            const current = accountData.get(email);
+            if(current) accountData.set(email, { ...current, status: 'Offline', client: null, authCode: null, authUrl: null });
         });
 
         client.on('close', () => {
             addLog(email, "Connection closed.");
-            accountData.set(email, { ...accountData.get(email), status: 'Offline', client: null });
+            const current = accountData.get(email);
+            if(current) accountData.set(email, { ...current, status: 'Offline', client: null, authCode: null, authUrl: null });
         });
 
     } catch (e) { 
         addLog(email, `CRITICAL ERROR: ${e.message}`);
-        accountData.set(email, { status: 'Error', username: email, proxy: proxyLabel }); 
+        accountData.set(email, { status: 'Error', username: email, proxy: proxyLabel, authCode: null, authUrl: null }); 
     }
 }
 
-// --- VERIFIED ROUTES ---
+// --- ROUTES ---
 
 app.get('/add', (req, res) => {
     const email = req.query.email;
     if (!accountData.has(email)) {
-        accountData.set(email, { status: 'Offline', username: email, shards: "0", proxy: 'Pending...' });
+        accountData.set(email, { status: 'Offline', username: email, shards: "0", proxy: 'Pending...', authCode: null, authUrl: null });
     }
     startBot(email);
     res.send("OK");
@@ -161,35 +171,46 @@ app.get('/disconnect', (req, res) => {
     res.send("OK");
 });
 
-// YOUR VERIFIED CHAT LOGIC
+app.get('/remove', (req, res) => {
+    const email = req.query.email;
+    if (!email) return res.status(400).send("Email required");
+    const bot = accountData.get(email);
+    if (bot?.client) { try { bot.client.disconnect(); } catch (e) {} }
+    accountData.delete(email);
+    const userAuthPath = path.join(authDir, email);
+    if (fs.existsSync(userAuthPath)) {
+        try {
+            fs.rmSync(userAuthPath, { recursive: true, force: true });
+            addLog(email, "Account data deleted.");
+        } catch (err) { addLog(email, `Error deleting: ${err.message}`); }
+    }
+    res.send("OK");
+});
+
 app.get('/chat', (req, res) => {
     const { email, message } = req.query;
     const bot = accountData.get(email);
     if (bot?.client && bot.status === 'Online') {
         bot.client.queue('text', {
-            type: 'raw', 
-            needs_translation: false, 
-            source_name: '',
-            message: String(message), 
-            xuid: '', 
-            platform_chat_id: ''
+            type: 'raw', needs_translation: false, source_name: '',
+            message: String(message), xuid: '', platform_chat_id: ''
         });
         res.send("OK");
-    } else {
-        res.status(400).send("Bot offline");
-    }
+    } else { res.status(400).send("Bot offline"); }
 });
 
 app.get('/logs', (req, res) => res.json(debugLogs));
 
+// UPDATED: Return auth info for frontend UI
 app.get('/status', (req, res) => {
     const list = Array.from(accountData.entries()).map(([email, info]) => ({
         email, 
         status: info.status, 
         username: info.username, 
         shards: info.shards,
-        // Make sure this specific line is here:
-        proxy: info.proxy || 'None' 
+        proxy: info.proxy || 'None',
+        authCode: info.authCode,
+        authUrl: info.authUrl
     }));
     res.json(list);
 });
@@ -201,6 +222,19 @@ app.get('/update-shards', async (req, res) => {
         accountData.set(req.query.email, { ...bot, shards: s });
         res.json({ shards: s });
     } else { res.status(404).send("Not Found"); }
+});
+
+app.get('/update-all-shards', async (req, res) => {
+    addLog("SYSTEM", "Bulk shard update...");
+    const promises = [];
+    accountData.forEach((bot, email) => {
+        if(bot.username && bot.username !== email) {
+            promises.push(getShards(bot.username).then(s => accountData.set(email, { ...bot, shards: s })));
+        }
+    });
+    await Promise.all(promises);
+    addLog("SYSTEM", "Update complete.");
+    res.send("OK");
 });
 
 app.use(express.static('public'));
