@@ -6,6 +6,7 @@
     "bedrock-protocol": "^3.53.0",
     "express": "^4.22.1",
     "prismarine-auth": "latest",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "socks": "^2.8.7"
   }
 }
