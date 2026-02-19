@@ -28,10 +28,11 @@ let debugLogs = [];
 function addLog(email, message) {
     const entry = `[${new Date().toLocaleTimeString()}] [${email}] ${message}`;
     debugLogs.push(entry);
-    if (debugLogs.length > 50) debugLogs.shift();
+    if (debugLogs.length > 100) debugLogs.shift(); // Increased log size slightly
     console.log(entry);
 }
 
+// Load existing accounts
 if (fs.existsSync(authDir)) {
     fs.readdirSync(authDir).forEach(email => {
         const fullPath = path.join(authDir, email);
@@ -81,15 +82,12 @@ async function startBot(email) {
     const proxyLabel = proxyString.split('@')[1]; 
 
     addLog(email, `Initializing via proxy: ${proxyLabel}`);
-    
-    // Set initial connecting state
     accountData.set(email, { ...existing, status: 'Connecting...', proxy: proxyLabel, authCode: null, authUrl: null });
 
     const flow = new Authflow(email, path.join(authDir, email), {
         flow: 'msal', 
-        authTitle: 'MinecraftJava',
+        authTitle: 'MinecraftPe', // IMPORTANT: Use MinecraftPe for Bedrock
         onMsaCode: (data) => {
-            // NEW: Update account data to show Auth UI on frontend
             accountData.set(email, { 
                 ...accountData.get(email), 
                 status: 'Authenticating',
@@ -102,50 +100,59 @@ async function startBot(email) {
 
     try {
         const url = new URL(proxyString);
+        
         const client = bedrock.createClient({
             host: 'donutsmp.net',
             port: 19132,
             authFlow: flow,
             profilesFolder: path.join(authDir, email),
             skipPing: true,
-            connect: (address, port) => {
-                return SocksClient.createConnection({
-                    proxy: {
-                        host: url.hostname,
-                        port: parseInt(url.port),
-                        type: 5,
-                        userId: url.username,
-                        password: url.password
-                    },
-                    command: 'connect',
-                    destination: { host: address, port: port }
-                }).then(info => info.socket);
+            connect: async (address, port) => {
+                addLog(email, `Opening proxy tunnel to ${address}:${port}...`);
+                try {
+                    const info = await SocksClient.createConnection({
+                        proxy: {
+                            host: url.hostname,
+                            port: parseInt(url.port),
+                            type: 5,
+                            userId: url.username,
+                            password: url.password
+                        },
+                        command: 'connect',
+                        destination: { host: address, port: port },
+                        timeout: 10000 // 10 second timeout for proxy
+                    });
+                    addLog(email, "Proxy tunnel established successfully.");
+                    return info.socket;
+                } catch (proxyErr) {
+                    addLog(email, `PROXY ERROR: ${proxyErr.message}`);
+                    throw proxyErr; // This ensures the client knows connection failed
+                }
             }
         });
 
         client.on('spawn', async () => {
             const name = client.username.startsWith('.') ? client.username : `.${client.username}`;
             const shards = await getShards(name);
-            // Clear auth data on success
             accountData.set(email, { client, status: 'Online', username: name, shards, proxy: proxyLabel, authCode: null, authUrl: null });
             addLog(email, `SUCCESS: Spawned as ${name}`);
         });
 
         client.on('error', (err) => {
-            addLog(email, `ERROR: ${err.message}`);
+            addLog(email, `CLIENT ERROR: ${err.message}`);
             const current = accountData.get(email);
-            if(current) accountData.set(email, { ...current, status: 'Offline', client: null, authCode: null, authUrl: null });
+            if(current) accountData.set(email, { ...current, status: 'Error', client: null });
         });
 
         client.on('close', () => {
             addLog(email, "Connection closed.");
             const current = accountData.get(email);
-            if(current) accountData.set(email, { ...current, status: 'Offline', client: null, authCode: null, authUrl: null });
+            if(current) accountData.set(email, { ...current, status: 'Offline', client: null });
         });
 
     } catch (e) { 
         addLog(email, `CRITICAL ERROR: ${e.message}`);
-        accountData.set(email, { status: 'Error', username: email, proxy: proxyLabel, authCode: null, authUrl: null }); 
+        accountData.set(email, { status: 'Error', username: email, proxy: proxyLabel }); 
     }
 }
 
@@ -181,7 +188,7 @@ app.get('/remove', (req, res) => {
     if (fs.existsSync(userAuthPath)) {
         try {
             fs.rmSync(userAuthPath, { recursive: true, force: true });
-            addLog(email, "Account data deleted.");
+            addLog(email, "Account data deleted from disk.");
         } catch (err) { addLog(email, `Error deleting: ${err.message}`); }
     }
     res.send("OK");
@@ -201,7 +208,6 @@ app.get('/chat', (req, res) => {
 
 app.get('/logs', (req, res) => res.json(debugLogs));
 
-// UPDATED: Return auth info for frontend UI
 app.get('/status', (req, res) => {
     const list = Array.from(accountData.entries()).map(([email, info]) => ({
         email, 
