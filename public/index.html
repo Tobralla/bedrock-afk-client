@@ -3,252 +3,438 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DonutBot Manager | Proxy Edition</title>
+    <title>DonutBot | Made by Inxx</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="https://i.ibb.co/JWzNFrhf/Untitled-design-11.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
-    :root {
-        --bg-main: #f4f7f9;
-        --card-bg: #ffffff;
-        --text-main: #1a1f36;
-        --text-dim: #697386;
-        --accent-blue: #5469d4;
-        --accent-green: #24b47e;
-        --border-color: #e3e8ee;
-    }
+        :root {
+            --bg-dark: #0f121a;
+            --bg-card: #1a1f2e;
+            --bg-input: #242b3d;
+            --accent-primary: #00e5ff;
+            --accent-secondary: #7b61ff;
+            --accent-gold: #ffd700;
+            --accent-microsoft: #00a4ef;
+            --text-main: #ffffff;
+            --text-muted: #8b95a8;
+            --text-dim: #5c6578;
+            --success: #00ff9d;
+            --danger: #ff4757;
+            --warning: #ffa502;
+            --border: rgba(255, 255, 255, 0.08);
+        }
 
-    body { 
-        background-color: var(--bg-main); 
-        color: var(--text-main); 
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-        padding: 40px; 
-        margin: 0;
-    }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    .container { max-width: 1200px; margin: 0 auto; }
+        body {
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(123, 97, 255, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 229, 255, 0.1) 0%, transparent 40%);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            padding: 30px;
+        }
 
-    /* Dashboard Header */
-    .header { margin-bottom: 30px; }
-    .header h1 { font-size: 24px; margin-bottom: 5px; }
-    .header p { color: var(--text-dim); font-size: 14px; margin: 0; }
+        .container { max-width: 1350px; margin: 0 auto; }
 
-    /* Top Stats Row */
-    .stats-row {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 20px;
-        margin-bottom: 30px;
-    }
+        /* --- TOP STATS AREA --- */
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
 
-    .mini-card {
-        background: var(--card-bg);
-        padding: 20px;
-        border-radius: 16px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }
+        /* Updated Branding Styles */
+        .brand h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #00ff87; /* DonutBot Color */
+            margin-bottom: 5px;
+            letter-spacing: -0.5px;
+        }
+        .brand p { 
+            color: #5a5f7a; /* Made by Inxx Color */
+            font-size: 0.95rem; 
+            font-weight: 600;
+        }
 
-    .mini-card h2 { font-size: 28px; margin: 5px 0; color: var(--text-main); }
-    .mini-card label { color: var(--text-dim); font-size: 12px; font-weight: 600; text-transform: uppercase; }
+        .stats-container { display: flex; gap: 15px; flex-wrap: wrap; }
 
-    /* Main Grid */
-    .grid { 
-        display: grid; 
-        grid-template-columns: 2fr 1fr; /* Matches the 2/3 and 1/3 split in image */
-        gap: 25px; 
-    }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 15px 25px;
+            min-width: 160px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
 
-    /* Large Cards */
-    .card { 
-        background: var(--card-bg); 
-        border-radius: 20px; 
-        padding: 25px; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        border: 1px solid var(--border-color);
-    }
+        .stat-card::before {
+            content: '';
+            position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+            background: var(--accent-primary);
+        }
+        .stat-card.spawners::before { background: var(--accent-secondary); }
+        .stat-card.status::before { background: var(--success); }
+        .stat-card.accounts::before { background: var(--accent-gold); }
 
-    .card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-    }
+        .stat-label {
+            font-size: 0.7rem;
+            text-transform: uppercase; letter-spacing: 1px;
+            color: var(--text-muted); font-weight: 600;
+        }
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.6rem; font-weight: 700; margin-top: 5px; color: #fff;
+        }
 
-    .card-title { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 8px; }
-    .card-title.green { color: var(--accent-green); }
-    .card-title.blue { color: var(--accent-blue); }
+        /* --- CONTROLS --- */
+        .controls-panel {
+            background: var(--bg-card); border-radius: 16px; padding: 20px;
+            margin-bottom: 30px; display: flex; gap: 15px; flex-wrap: wrap;
+            align-items: center; border: 1px solid var(--border);
+        }
+        .input-box { flex: 1; min-width: 250px; }
+        .input-box input {
+            width: 100%; padding: 14px 20px; background: var(--bg-input);
+            border: 1px solid var(--border); border-radius: 10px; color: white;
+            font-family: inherit; font-size: 0.95rem; transition: all 0.2s;
+        }
+        .input-box input:focus {
+            outline: none; border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.1);
+        }
 
-    /* Bot Account Styling */
-    .proxy-badge {
-        background: #f7fafc;
-        color: var(--accent-blue);
-        font-family: 'SFMono-Regular', Consolas, monospace;
-        font-size: 11px;
-        padding: 4px 10px;
-        border-radius: 6px;
-        border: 1px solid var(--border-color);
-        margin-bottom: 10px;
-    }
+        .btn {
+            padding: 14px 24px; border-radius: 10px; border: none;
+            font-weight: 600; font-size: 0.9rem; cursor: pointer;
+            transition: all 0.2s; display: flex; align-items: center; gap: 8px;
+            font-family: inherit;
+        }
+        .btn-add { background: var(--accent-primary); color: #000; }
+        .btn-add:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 229, 255, 0.3); }
+        .btn-action { background: var(--accent-secondary); color: #fff; }
+        .btn-action:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(123, 97, 255, 0.3); }
 
-    /* Progress Bar Style (For Shard visualization) */
-    .progress-wrapper { margin: 15px 0; }
-    .progress-bar {
-        height: 8px;
-        background: #eef2f7;
-        border-radius: 10px;
-        overflow: hidden;
-    }
-    .progress-fill {
-        height: 100%;
-        background: var(--accent-blue);
-        width: 45%; /* Dynamically set via JS */
-    }
+        /* --- BOT GRID --- */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+        }
 
-    /* Debug Console Styling */
-    .console { 
-        background: #ffffff; 
-        color: #4f566b; 
-        font-family: 'SFMono-Regular', monospace; 
-        height: 150px; 
-        overflow-y: auto; 
-        padding: 15px; 
-        border-radius: 12px; 
-        border: 1px solid var(--border-color);
-        font-size: 12px;
-        line-height: 1.6;
-        margin-top: 20px;
-    }
+        .bot-card {
+            background: var(--bg-card); border-radius: 16px; padding: 20px;
+            border: 1px solid var(--border); transition: all 0.3s ease;
+            position: relative; display: flex; flex-direction: column;
+        }
+        .bot-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            border-color: rgba(255,255,255,0.15);
+        }
+        
+        /* Auth Needed State */
+        .bot-card.auth-needed {
+            border-color: var(--accent-microsoft);
+            background: linear-gradient(135deg, #1a1f2e 0%, #152238 100%);
+        }
 
-    /* Input/Buttons */
-    .input-group {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 25px;
-    }
+        .btn-delete {
+            position: absolute; top: 15px; right: 15px; background: transparent;
+            border: none; cursor: pointer; font-size: 1.1rem; opacity: 0.4;
+            transition: all 0.2s; padding: 5px; line-height: 1;
+        }
+        .btn-delete:hover { opacity: 1; transform: scale(1.2); }
 
-    input[type="text"] {
-        padding: 12px 16px;
-        border-radius: 8px;
-        border: 1px solid var(--border-color);
-        background: white;
-        width: 300px;
-    }
+        .card-top {
+            margin-bottom: 15px; 
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+            padding-right: 30px;
+        }
 
-    .btn-primary {
-        background: var(--accent-blue);
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-    }
-</style>
+        .bot-info { width: 100%; }
+
+        .bot-info h3 {
+            font-size: 1.1rem; font-weight: 700; margin-bottom: 4px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .bot-email {
+            display: block;
+            font-size: 0.8rem; color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            margin-bottom: 8px;
+        }
+
+        /* Proxy Badge under email */
+        .proxy-badge {
+            display: inline-block;
+            background: rgba(0, 229, 255, 0.1); 
+            color: var(--accent-primary);
+            font-size: 0.7rem; padding: 4px 8px; border-radius: 4px;
+            font-weight: 600; 
+        }
+
+        .status-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            display: inline-block; margin-right: 8px; animation: pulse 2s infinite;
+        }
+        .status-dot.online { background: var(--success); box-shadow: 0 0 10px var(--success); }
+        .status-dot.offline { background: var(--text-dim); animation: none; }
+        .status-dot.connecting { background: var(--warning); }
+        .status-dot.auth { background: var(--accent-microsoft); box-shadow: 0 0 10px var(--accent-microsoft); }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .stat-row {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 15px;
+        }
+        .shard-count {
+            font-family: 'JetBrains Mono', monospace; font-size: 1.2rem;
+            font-weight: 700; color: var(--accent-gold);
+        }
+        .status-text {
+            font-size: 0.8rem; font-weight: 600; display: flex;
+            align-items: center; text-transform: uppercase;
+        }
+
+        .bot-card > .chat-controls:last-child { margin-top: auto; }
+        .chat-controls { display: flex; gap: 10px; }
+        .chat-input {
+            flex: 1; background: var(--bg-input); border: 1px solid var(--border);
+            padding: 10px; border-radius: 8px; color: white; font-size: 0.85rem;
+        }
+        .btn-control {
+            padding: 10px 16px; font-size: 0.8rem; background: var(--bg-input);
+            color: white; border: 1px solid var(--border); cursor: pointer;
+        }
+        .btn-control.stop { border-color: var(--danger); color: var(--danger); }
+        .btn-control.start { border-color: var(--success); color: var(--success); }
+
+        /* --- MICROSOFT AUTH UI --- */
+        .auth-box {
+            background: rgba(0, 164, 239, 0.1); border: 1px solid var(--accent-microsoft);
+            border-radius: 8px; padding: 15px; margin-top: 5px; text-align: center;
+        }
+        .auth-link {
+            display: block; color: var(--accent-microsoft); font-weight: 700;
+            font-size: 1.1rem; margin-bottom: 5px; text-decoration: none;
+        }
+        .auth-code {
+            font-family: 'JetBrains Mono', monospace; font-size: 1.4rem;
+            letter-spacing: 3px; font-weight: 800; color: #fff;
+            background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px;
+            user-select: all; margin: 10px 0;
+        }
+
+        /* --- LOGS --- */
+        .log-section {
+            margin-top: 30px; background: var(--bg-card); border-radius: 16px;
+            padding: 20px; border: 1px solid var(--border);
+        }
+        .log-header {
+            font-weight: 600; margin-bottom: 15px; color: var(--text-muted); font-size: 0.9rem;
+        }
+        .console {
+            background: #000; border-radius: 8px; padding: 15px; height: 200px;
+            overflow-y: auto; font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem; color: #ccc; white-space: pre-wrap;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--text-dim); border-radius: 3px; }
+    </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="header">
-        <h1 class="shard-display" id="totalShards">0</h1>
-        <div class="shard-label">TOTAL NETWORK SHARDS</div>
+    <div class="header-row">
+        <div class="brand">
+            <h1>DonutBot</h1>
+            <p>Made by Inxx</p>
+        </div>
+
+        <div class="stats-container">
+            <div class="stat-card status">
+                <div class="stat-label">Network Status</div>
+                <div class="stat-value" id="netStatus">0/0 Online</div>
+            </div>
+            <div class="stat-card accounts">
+                <div class="stat-label">Total Accounts</div>
+                <div class="stat-value" id="totalAccounts">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Shards</div>
+                <div class="stat-value" id="totalShards">0</div>
+            </div>
+            <div class="stat-card spawners">
+                <div class="stat-label">Total Spawners</div>
+                <div class="stat-value" id="totalSpawners">0</div>
+            </div>
+        </div>
     </div>
 
-    <div class="input-section">
-        <input type="text" id="emailInput" placeholder="Enter Microsoft Email (e.g. user@outlook.com)">
-        <button class="btn-add" onclick="addAccount()">+ Add Account</button>
+    <div class="controls-panel">
+        <div class="input-box">
+            <input type="text" id="emailInput" placeholder="Enter Microsoft Email (e.g. user@outlook.com)">
+        </div>
+        <button class="btn btn-add" onclick="addAccount()">
+            <span>+</span> Add Account
+        </button>
+        <button class="btn btn-action" onclick="refreshAllShards()">
+            🍩 Get Donutshards
+        </button>
     </div>
 
     <div class="grid" id="botGrid"></div>
 
-    <div class="log-header">System Connection Logs</div>
-    <div class="console" id="logBox">Waiting for system status...</div>
+    <div class="log-section">
+        <div class="log-header">System Logs</div>
+        <div class="console" id="logBox">Initializing system...</div>
+    </div>
 </div>
 
 <script>
-    // Add a new account to the manager
     async function addAccount() {
         const input = document.getElementById('emailInput');
         const email = input.value.trim();
         if (!email) return;
-        
         await fetch(`/add?email=${encodeURIComponent(email)}`);
         input.value = '';
         updateUI();
     }
 
-    // Send a chat message through a specific bot
     async function sendChat(email) {
         const safeId = email.replace(/[@.]/g, '');
         const input = document.getElementById(`in-${safeId}`);
         const message = input.value.trim();
-        
         if (!message) return;
-        
         await fetch(`/chat?email=${encodeURIComponent(email)}&message=${encodeURIComponent(message)}`);
         input.value = '';
     }
 
-    // Main update loop
+    async function removeAccount(email) {
+        if(!confirm(`Delete ${email}?`)) return;
+        await fetch(`/remove?email=${encodeURIComponent(email)}`);
+        updateUI();
+    }
+
+    async function refreshAllShards() {
+        const btn = document.querySelector('.btn-action');
+        btn.innerHTML = '⏳ Updating...';
+        btn.disabled = true;
+        try {
+            await fetch('/update-all-shards');
+            setTimeout(() => { updateUI(); btn.innerHTML = '🍩 Get Donutshards'; btn.disabled = false; }, 1000);
+        } catch (e) { console.error(e); btn.innerHTML = '🍩 Get Donutshards'; btn.disabled = false; }
+    }
+
     async function updateUI() {
         try {
             const res = await fetch('/status');
             const bots = await res.json();
             const grid = document.getElementById('botGrid');
+            
             let totalShards = 0;
+            let totalOnline = 0;
+            let totalAccs = bots.length;
             
             grid.innerHTML = bots.map(bot => {
-                totalShards += parseInt(bot.shards) || 0;
-                const isOnline = bot.status === 'Online';
+                const s = parseInt(bot.shards) || 0;
+                totalShards += s;
+                if(bot.status === 'Online') totalOnline++;
+
                 const safeId = bot.email.replace(/[@.]/g, '');
                 
-                return `
-                    <div class="card ${bot.status}">
-                        <div class="proxy-badge">🔗 PROXY: ${bot.proxy || 'Calculating...'}</div>
-                        
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                            <div>
-                                <p class="bot-name">${bot.username || 'Initializing...'}</p>
-                                <p class="bot-email">${bot.email}</p>
+                // Handle Authenticating Status
+                if (bot.status === 'Authenticating' && bot.authCode) {
+                    return `
+                        <div class="bot-card auth-needed">
+                            <button class="btn-delete" onclick="removeAccount('${bot.email}')">🗑️</button>
+                            <div class="card-top">
+                                <div class="bot-info">
+                                    <h3>Authentication Required</h3>
+                                    <span class="bot-email">${bot.email}</span>
+                                    <div class="proxy-badge">🔗 ${bot.proxy || 'N/A'}</div>
+                                </div>
                             </div>
-                            <button style="background:#222; color:white; font-size:0.7rem; padding: 5px 10px;" 
-                                    onclick="fetch('/${isOnline ? 'disconnect' : 'connect'}?email=${bot.email}')">
-                                ${isOnline ? 'Stop' : 'Start'}
-                            </button>
+                            <div class="auth-box">
+                                <p style="margin-bottom: 5px; font-size: 0.9rem;">Click link and enter code:</p>
+                                <a href="${bot.authUrl}" target="_blank" class="auth-link">microsoft.com/link</a>
+                                <div class="auth-code">${bot.authCode}</div>
+                            </div>
                         </div>
-                        
-                        <div class="stat-row">
-                            <span class="shard-pill">${(parseInt(bot.shards)||0).toLocaleString()} Shards</span>
-                            <span style="font-size: 0.75rem; color: ${isOnline ? '#00ff00' : '#666'}; font-weight: bold;">
-                                ${bot.status.toUpperCase()}
-                            </span>
+                    `;
+                }
+
+                const isOnline = bot.status === 'Online';
+                return `
+                    <div class="bot-card">
+                        <button class="btn-delete" onclick="removeAccount('${bot.email}')">🗑️</button>
+                        <div class="card-top">
+                            <div class="bot-info">
+                                <h3 title="${bot.username}">${bot.username || '...'}</h3>
+                                <span class="bot-email" title="${bot.email}">${bot.email}</span>
+                                <div class="proxy-badge">🔗 ${bot.proxy || 'N/A'}</div>
+                            </div>
                         </div>
 
-                        ${isOnline ? `
-                            <div class="chat-area">
-                                <input type="text" id="in-${safeId}" class="chat-input" placeholder="Chat message..." 
-                                       onkeypress="if(event.key==='Enter') sendChat('${bot.email}')">
-                                <button class="btn-send" onclick="sendChat('${bot.email}')">Send</button>
+                        <div class="stat-row">
+                            <div class="shard-count">💎 ${s.toLocaleString()}</div>
+                            <div class="status-text">
+                                <span class="status-dot ${bot.status.toLowerCase()}"></span>
+                                ${bot.status}
                             </div>
+                        </div>
+
+                        <div class="chat-controls">
+                            ${isOnline ? `
+                                <input type="text" id="in-${safeId}" class="chat-input" placeholder="Chat..." 
+                                       onkeypress="if(event.key==='Enter') sendChat('${bot.email}')">
+                                <button class="btn btn-control" onclick="sendChat('${bot.email}')">Send</button>
+                            ` : `
+                                <button class="btn btn-control start" style="width: 100%;" onclick="fetch('/connect?email=${bot.email}').then(updateUI)">Start Bot</button>
+                            `}
+                        </div>
+                        
+                        ${isOnline ? `
+                            <button class="btn btn-control stop" style="width: 100%; margin-top: 10px;" 
+                                    onclick="fetch('/disconnect?email=${bot.email}').then(updateUI)">Disconnect</button>
                         ` : ''}
                     </div>
                 `;
             }).join('');
 
+            // Update Header Stats
             document.getElementById('totalShards').innerText = totalShards.toLocaleString();
+            document.getElementById('totalAccounts').innerText = totalAccs;
+            document.getElementById('netStatus').innerText = `${totalOnline}/${totalAccs} Online`;
+            document.getElementById('totalSpawners').innerText = Math.floor(totalShards / 500).toLocaleString();
 
-            // Fetch and update logs
+            // Logs
             const logRes = await fetch('/logs');
             const logs = await logRes.json();
             const logBox = document.getElementById('logBox');
-            logBox.innerText = logs.length > 0 ? logs.join('\n') : "No activity recorded.";
+            logBox.innerText = logs.length > 0 ? logs.join('\n') : "No recent activity.";
             logBox.scrollTop = logBox.scrollHeight;
 
-        } catch (err) {
-            console.error("Failed to update UI:", err);
-        }
+        } catch (err) { console.error("UI Update Failed:", err); }
     }
 
-    // Run update every 3 seconds
-    setInterval(updateUI, 3000);
+    setInterval(updateUI, 4000);
     updateUI();
 </script>
-
 </body>
 </html>
